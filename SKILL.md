@@ -23,8 +23,6 @@ Run `scripts/stow.sh` from skill directory:
 | `restow <pkg>` | Refresh symlinks (unstow + stow) |
 | `stow-all` | Stow all packages |
 | `list` | List available packages |
-| `fetch-skills` | Fetch latest skills from GitHub releases |
-| `fetch-mcps` | Fetch latest MCP servers from GitHub releases |
 
 ## Package Structure
 
@@ -64,14 +62,11 @@ git push
 
 ## Fetching Skills and MCPs
 
-Skills and MCP servers are fetched from GitHub releases (not submodules). This keeps dotfiles simple and ensures latest versions.
+Skills and MCP servers are fetched via the dotfiles repo's setup script (not this skill). This keeps bootstrap self-contained.
 
 ```bash
-# Fetch latest skills
-./skills/dotfiles/scripts/stow.sh fetch-skills
-
-# Fetch latest MCP servers
-./skills/dotfiles/scripts/stow.sh fetch-mcps
+cd ~/dotfiles
+./setup.sh --fetch-only
 ```
 
-Skills without releases use embedded versions from the `claude` package. As repos add release workflows, fetch automatically picks them up.
+Skills without releases use embedded versions. As repos add release workflows, fetch automatically picks them up.
