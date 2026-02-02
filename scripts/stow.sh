@@ -15,6 +15,8 @@ usage() {
     echo "  restow <pkg>    Restow a package (unstow then stow)"
     echo "  stow-all        Stow all packages"
     echo "  list            List available packages"
+    echo "  fetch-skills    Fetch latest skills from GitHub releases"
+    echo "  fetch-mcps      Fetch latest MCP servers from GitHub releases"
     exit 1
 }
 
@@ -128,6 +130,82 @@ stow_all() {
     done
 }
 
+# Download latest release asset from GitHub
+download_release_asset() {
+    local repo="$1"
+    local pattern="$2"
+    local output_dir="$3"
+
+    local api_url="https://api.github.com/repos/$repo/releases/latest"
+    local release_json=$(curl -sf "$api_url" 2>/dev/null) || return 1
+
+    local regex_pattern=$(echo "$pattern" | sed 's/\*/.*/g')
+    local asset_url=$(echo "$release_json" | grep -o '"browser_download_url": *"[^"]*"' | \
+        grep -E "$regex_pattern" | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')
+
+    [[ -z "$asset_url" ]] && return 1
+
+    local filename=$(basename "$asset_url")
+    curl -sfL "$asset_url" -o "$output_dir/$filename" 2>/dev/null || return 1
+    echo "$output_dir/$filename"
+}
+
+fetch_skills() {
+    echo "Fetching skills from GitHub releases..."
+
+    local skills=(
+        "foxtrottwist/iterative-development"
+        "foxtrottwist/Iterative-work"
+        "foxtrottwist/code-audit"
+        "foxtrottwist/chat-migration"
+        "foxtrottwist/dotfiles-skill"
+        "foxtrottwist/prompt-dev"
+        "foxtrottwist/submodule-sync"
+        "foxtrottwist/job-apply"
+        "foxtrottwist/write"
+    )
+
+    local tmp_dir=$(mktemp -d)
+    local skills_dir="$HOME/.claude/skills"
+    mkdir -p "$skills_dir"
+
+    for repo in "${skills[@]}"; do
+        local name=$(basename "$repo")
+        local skill_file=$(download_release_asset "$repo" "*.skill" "$tmp_dir")
+        if [[ -f "$skill_file" ]]; then
+            unzip -o -q "$skill_file" -d "$skills_dir"
+            rm -f "$skill_file"
+            echo "[OK] Fetched: $name"
+        else
+            echo "[SKIP] No release: $name"
+        fi
+    done
+
+    rm -rf "$tmp_dir"
+}
+
+fetch_mcps() {
+    echo "Fetching MCP servers from GitHub releases..."
+
+    local tmp_dir=$(mktemp -d)
+    local mcp_dir="$HOME/.claude/mcps"
+    mkdir -p "$mcp_dir"
+
+    local mcpb_file=$(download_release_asset "foxtrottwist/shortcuts-mcp" "*.mcpb" "$tmp_dir")
+    if [[ -f "$mcpb_file" ]]; then
+        unzip -o -q "$mcpb_file" -d "$mcp_dir/shortcuts-mcp"
+        echo "[OK] Fetched: shortcuts-mcp"
+
+        if command -v claude &>/dev/null; then
+            claude mcp add -s user --transport stdio shortcuts-mcp -- node "$mcp_dir/shortcuts-mcp/dist/server.js" 2>/dev/null || true
+        fi
+    else
+        echo "[SKIP] No release: shortcuts-mcp"
+    fi
+
+    rm -rf "$tmp_dir"
+}
+
 case "${1:-}" in
     status) status_all ;;
     stow) stow_pkg "$2" ;;
@@ -135,5 +213,7 @@ case "${1:-}" in
     restow) restow_pkg "$2" ;;
     stow-all) stow_all ;;
     list) list_packages ;;
+    fetch-skills) fetch_skills ;;
+    fetch-mcps) fetch_mcps ;;
     *) usage ;;
 esac
